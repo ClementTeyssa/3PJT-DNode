@@ -10,7 +10,7 @@ services:
       - "traefik.docker.network=web"
       - 'traefik.enable=true'
       - "traefik.frontend.rule=Host:3pjt-dnode.infux.fr"
-      - "traefikbasic.port=8284"
+      - "traefikbasic.port=51000"
     networks:
       - web
       - default
