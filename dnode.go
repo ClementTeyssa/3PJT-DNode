@@ -198,14 +198,15 @@ func GetMyIP() string {
 func handleNodeAddr(w http.ResponseWriter, r *http.Request) {
 	log.Println("handleNodeAddr() API called")
 	w.Header().Set("Content-Type", "application/json")
+	var node Node
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&Nodes); err != nil {
+	if err := decoder.Decode(&node); err != nil {
 		log.Println(err)
 		respondWithJSON(w, r, http.StatusBadRequest, r.Body)
 		return
 	}
+	Nodes = append(Nodes, node)
 	defer r.Body.Close()
-	//log.Println("Enroll request from:", incomingPeer.ThisPeer, "successful")
 	respondWithJSON(w, r, http.StatusCreated, r.Body)
 }
 
