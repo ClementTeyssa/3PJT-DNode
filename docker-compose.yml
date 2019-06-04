@@ -2,8 +2,6 @@ version: '2'
 services:
   app:
     image: golang:1.12.5-alpine3.9
-    ports:
-      - "8284:51000"
     volumes:
       - .:/go/src/github.com/ClementTeyssa/3PJT-DNode/
     working_dir: /go/src/github.com/ClementTeyssa/3PJT-DNode/
