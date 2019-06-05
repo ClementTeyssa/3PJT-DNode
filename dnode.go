@@ -23,18 +23,16 @@ type Node struct {
 	TxAddr string `json:"adress"`
 }
 
-var Nodes []Node
+type Nodes struct {
+	NodesTab []Node `json:"nodes"`
+}
+
+var MyNodes Nodes
 
 var MaxPeerPort int
 
 type Peer struct {
 	PeerAddress string `json:"PeerAddress"`
-}
-
-var ListOfPeers []Peer
-
-func GetListOfPeers() []Peer {
-	return ListOfPeers
 }
 
 func (p Peer) Addr() string {
@@ -88,6 +86,7 @@ func makeMUXRouter() http.Handler { // create handlers
 	muxRouter.HandleFunc("/port-request", handlePortReq).Methods("GET")
 	muxRouter.HandleFunc("/node-addr", handleNodeAddr).Methods("POST")
 	muxRouter.HandleFunc("/get-nodes", getAllNodes).Methods("GET")
+	muxRouter.HandleFunc("/remove-peer", removePeer).Methods("POST")
 	return muxRouter
 }
 
@@ -122,7 +121,6 @@ func handleEnroll(w http.ResponseWriter, r *http.Request) {
 
 	_ = updatePeerGraph(incomingPeer)
 	log.Println("Enroll request from:", incomingPeer.ThisPeer, "successful")
-	ListOfPeers = append(ListOfPeers, incomingPeer.ThisPeer)
 	respondWithJSON(w, r, http.StatusCreated, incomingPeer)
 }
 
@@ -205,13 +203,67 @@ func handleNodeAddr(w http.ResponseWriter, r *http.Request) {
 		respondWithJSON(w, r, http.StatusBadRequest, r.Body)
 		return
 	}
-	Nodes = append(Nodes, node)
+	MyNodes.NodesTab = append(MyNodes.NodesTab, node)
 	defer r.Body.Close()
 	respondWithJSON(w, r, http.StatusCreated, r.Body)
+}
+
+func removePeer(w http.ResponseWriter, r *http.Request) {
+	log.Println("removePeer() API called")
+	w.Header().Set("Content-Type", "application/json")
+	var incomingPeer PeerProfile
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&incomingPeer); err != nil {
+		log.Println(err)
+		respondWithJSON(w, r, http.StatusBadRequest, r.Body)
+		return
+	}
+	_ = removePeerGraph(incomingPeer)
+	var i int
+	for i = 0; i < len(MyNodes.NodesTab)-1; i++ {
+		if MyNodes.NodesTab[i].PhAddr == incomingPeer.ThisPeer.Addr() {
+			break
+		}
+	}
+	MyNodes.NodesTab = append(MyNodes.NodesTab[:i], MyNodes.NodesTab[i+1:]...)
+}
+
+func removePeerGraph(inPeer PeerProfile) error {
+	if *verbose {
+		log.Println("incomingPeer = ", inPeer)
+		spew.Dump(PeerGraph)
+	}
+
+	// Update PeerGraph
+	graphMutex.Lock()
+	if *verbose {
+		log.Println("PeerGraph before update = ", PeerGraph)
+	}
+	//PeerGraph[inPeer.ThisPeer.Addr()] = inPeer
+	for _, neighbor := range inPeer.Neighbors {
+		profile := PeerGraph[neighbor.Addr()]
+		//profile.Neighbors = append(profile.Neighbors, inPeer.ThisPeer)
+		var i int
+		for i = 0; i < len(profile.Neighbors)-1; i++ {
+			if profile.Neighbors[i] == inPeer.ThisPeer {
+				break
+			}
+		}
+		profile.Neighbors = append(profile.Neighbors[:i], profile.Neighbors[i+1:]...)
+		//PeerGraph[neighbor.Addr()] = profile
+		delete(PeerGraph, neighbor.Addr())
+	}
+	delete(PeerGraph, inPeer.ThisPeer.Addr())
+	if *verbose {
+		log.Println("PeerGraph after update = ", PeerGraph)
+		spew.Dump(PeerGraph)
+	}
+	graphMutex.Unlock()
+	return nil
 }
 
 func getAllNodes(w http.ResponseWriter, r *http.Request) {
 	log.Println("getAllNodes() API called")
 	w.Header().Set("Content-Type", "application/json")
-	respondWithJSON(w, r, http.StatusCreated, Nodes)
+	respondWithJSON(w, r, http.StatusCreated, MyNodes)
 }
